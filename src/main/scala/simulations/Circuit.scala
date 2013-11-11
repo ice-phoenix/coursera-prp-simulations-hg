@@ -7,7 +7,7 @@ class Wire {
   private var actions: List[Simulator#Action] = List()
 
   def getSignal: Boolean = sigVal
-  
+
   def setSignal(s: Boolean) {
     if (s != sigVal) {
       sigVal = s
@@ -30,8 +30,7 @@ abstract class CircuitSimulator extends Simulator {
   def probe(name: String, wire: Wire) {
     wire addAction {
       () => afterDelay(0) {
-        println(
-          "  " + currentTime + ": " + name + " -> " +  wire.getSignal)
+        println("  " + currentTime + ": " + name + " -> " + wire.getSignal)
       }
     }
   }
@@ -54,20 +53,56 @@ abstract class CircuitSimulator extends Simulator {
     a2 addAction andAction
   }
 
-  //
-  // to complete with orGates and demux...
-  //
-
   def orGate(a1: Wire, a2: Wire, output: Wire) {
-    ???
+    def orAction() {
+      val a1Sig = a1.getSignal
+      val a2Sig = a2.getSignal
+      afterDelay(OrGateDelay) { output.setSignal(a1Sig | a2Sig) }
+    }
+    a1 addAction orAction
+    a2 addAction orAction
   }
-  
+
   def orGate2(a1: Wire, a2: Wire, output: Wire) {
-    ???
+    def orAction() {
+      val not_a1 = new Wire
+      inverter(a1, not_a1)
+      val not_a2 = new Wire
+      inverter(a2, not_a2)
+
+      val and = new Wire
+      andGate(not_a1, not_a2, and)
+
+      inverter(and, output)
+    }
+    a1 addAction orAction
+    a2 addAction orAction
   }
 
   def demux(in: Wire, c: List[Wire], out: List[Wire]) {
-    ???
+    val cond = c.head
+    val rest = c.tail
+
+    val not_cond = new Wire
+    inverter(cond, not_cond)
+
+    val (upperOut, lowerOut) = out.splitAt(out.size / 2)
+
+    def demuxAction() {
+      val (upper, lower) = if (rest.isEmpty) {
+        (upperOut.head, lowerOut.head)
+      } else {
+        val (u, l) = (new Wire, new Wire)
+        demux(u, rest, upperOut)
+        demux(l, rest, lowerOut)
+        (u, l)
+      }
+      andGate(in, cond, upper)
+      andGate(in, not_cond, lower)
+    }
+
+    in addAction demuxAction
+    cond addAction demuxAction
   }
 
 }
@@ -95,7 +130,7 @@ object Circuit extends CircuitSimulator {
   }
 
   //
-  // to complete with orGateExample and demuxExample...
+  // to NOT complete with orGateExample and demuxExample...
   //
 }
 
