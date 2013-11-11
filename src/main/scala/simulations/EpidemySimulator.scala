@@ -18,6 +18,11 @@ class EpidemySimulator extends Simulator {
     val hasAirTraffic = true
     val airTrafficRate = 0.01f
 
+    val hasReducedMobility = true
+
+    val hasChosenFew = true
+    val chosenFewRate = 0.05f
+
     val prevalenceRate = 0.01f
     val transmissibilityRate = 0.4f
     val deathRate = 0.25f
@@ -30,8 +35,17 @@ class EpidemySimulator extends Simulator {
 
   // Spawn people
   val persons: List[Person] = Range(0, population).map(new Person(_)).toList
+
+  // Prep
+  val p0 = persons
   // Infect people
-  persons.take(math.round(prevalenceRate * population)).foreach(_.infected = true)
+  val (infected, p1) = p0.splitAt(math.round(prevalenceRate * p0.size))
+  infected.foreach(_.infected = true)
+  // Vaccinate chosen few
+  if (hasChosenFew) {
+    val (vaccinated, _) = p1.splitAt(math.round(chosenFewRate * p1.size))
+    vaccinated.foreach(_.immune = true)
+  }
   // Kick-start the simulation in random order
   Random.shuffle(persons).foreach(_.mode())
 
@@ -58,12 +72,13 @@ class EpidemySimulator extends Simulator {
 
     def isVisiblyInfectious = sick || dead
     def isInfectious = infected
+    def isNotImmune = !immune
     def isHealthy = !infected
 
     // Actions
 
     def becomeInfected() {
-      if (isHealthy) {
+      if (isHealthy && isNotImmune) {
         if (map(row)(col).exists(_.isInfectious)) {
           if (random < transmissibilityRate) {
             infected = true
@@ -137,9 +152,23 @@ class EpidemySimulator extends Simulator {
       }
     }
 
+    def modeDelay() = {
+      if (hasReducedMobility) {
+        if (isVisiblyInfectious) {
+          randomBelow(4 * modeQuanta)
+        } else {
+          randomBelow(2 * modeQuanta)
+        }
+
+      } else {
+        randomBelow(modeQuanta)
+
+      }
+    }
+
     def mode() {
       val next = randomMove()
-      afterDelay(randomBelow(modeQuanta)) {
+      afterDelay(modeDelay()) {
         updatePos(next._1, next._2)
         mode()
       }
