@@ -15,12 +15,12 @@ class EpidemySimulator extends Simulator {
 
     val modeQuanta = 5
 
-    val hasAirTraffic = true
+    val hasAirTraffic = false
     val airTrafficRate = 0.01f
 
-    val hasReducedMobility = true
+    val hasReducedMobility = false
 
-    val hasChosenFew = true
+    val hasChosenFew = false
     val chosenFewRate = 0.05f
 
     val prevalenceRate = 0.01f
