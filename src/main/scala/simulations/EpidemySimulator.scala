@@ -15,17 +15,17 @@ class EpidemySimulator extends Simulator {
 
     val modeQuanta = 5
 
+    val prevalenceRate = 0.01f // of population
+    val transmissibilityRate = 0.4d
+    val deathRate = 0.25d
+
     val hasAirTraffic = false
-    val airTrafficRate = 0.01f
+    val airTrafficRate = 0.01d
 
     val hasReducedMobility = false
 
     val hasChosenFew = false
-    val chosenFewRate = 0.05f
-
-    val prevalenceRate = 0.01f
-    val transmissibilityRate = 0.4f
-    val deathRate = 0.25f
+    val chosenFewRate = 0.05f // of population
   }
 
   import SimConfig._
@@ -167,8 +167,8 @@ class EpidemySimulator extends Simulator {
     }
 
     def mode() {
-      val next = randomMove()
       afterDelay(modeDelay()) {
+        val next = randomMove()
         updatePos(next._1, next._2)
         mode()
       }
