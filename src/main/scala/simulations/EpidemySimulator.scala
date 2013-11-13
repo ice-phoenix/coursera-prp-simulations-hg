@@ -16,11 +16,11 @@ class EpidemySimulator extends Simulator {
     val modeQuanta = 5
 
     val prevalenceRate = 0.01f // of population
-    val transmissibilityRate = 0.4d
-    val deathRate = 0.25d
+    val transmissibilityRate = 0.4f
+    val deathRate = 0.25f
 
     val hasAirTraffic = false
-    val airTrafficRate = 0.01d
+    val airTrafficRate = 0.01f
 
     val hasReducedMobility = false
 
@@ -40,14 +40,17 @@ class EpidemySimulator extends Simulator {
   val p0 = persons
   // Infect people
   val (infected, p1) = p0.splitAt(math.round(prevalenceRate * p0.size))
-  infected.foreach(_.infected = true)
+  infected.foreach{ p => {
+    p.infected = true
+    p.scheduleBecomeSick()
+  }}
   // Vaccinate chosen few
   if (hasChosenFew) {
     val (vaccinated, _) = p1.splitAt(math.round(chosenFewRate * p1.size))
-    vaccinated.foreach(_.immune = true)
+    vaccinated.foreach{ _.immune = true }
   }
   // Kick-start the simulation in random order
-  Random.shuffle(persons).foreach(_.mode())
+  Random.shuffle(persons).foreach{ _.scheduleMode() }
 
   def wrapBy(by: Int)(v: Int) = {
     if (v < 0) by - 1
@@ -72,42 +75,45 @@ class EpidemySimulator extends Simulator {
 
     def isVisiblyInfectious = sick || dead
     def isInfectious = infected
-    def isNotImmune = !immune
-    def isHealthy = !infected
+    def canBeInfected = !infected && !sick && !immune && !dead
 
     // Actions
 
-    def becomeInfected() {
-      if (isHealthy && isNotImmune) {
-        if (map(row)(col).exists(_.isInfectious)) {
-          if (random < transmissibilityRate) {
-            infected = true
-            afterDelay(6) { becomeSick() }
-          }
-        }
+    def ifPossible()(a: => Unit) = if (!dead) a
+
+    def scheduleBecomeInfected() = afterDelay(0) { becomeInfected() }
+    def scheduleBecomeSick() = afterDelay(6) { becomeSick() }
+    def scheduleBecomeDead() = afterDelay(8) { becomeDead() }
+    def scheduleBecomeImmune() = afterDelay(2) { becomeImmune() }
+    def scheduleBecomeHealthy() = afterDelay(2) { becomeHealthy() }
+
+    def becomeInfected() = ifPossible() {
+      if (canBeInfected && random < transmissibilityRate) {
+          infected = true
+          scheduleBecomeSick()
       }
     }
 
-    def becomeSick() {
+    def becomeSick() = ifPossible() {
       sick = true
-      afterDelay(8) { becomeDead() }
+      scheduleBecomeDead()
     }
 
-    def becomeDead() {
+    def becomeDead() = ifPossible() {
       if (random < deathRate) {
         dead = true
       } else {
-        afterDelay(2) { becomeImmune() }
+        scheduleBecomeImmune()
       }
     }
 
-    def becomeImmune() {
+    def becomeImmune() = ifPossible() {
       sick = false
       immune = true
-      afterDelay(2) { becomeHealthy() }
+      scheduleBecomeHealthy()
     }
 
-    def becomeHealthy() {
+    def becomeHealthy() = ifPossible() {
       immune = false
       infected = false
     }
@@ -118,16 +124,14 @@ class EpidemySimulator extends Simulator {
     var col: Int = randomColumn()
     map(row)(col) += this
 
-    def updatePos(newRow: Int, newCol: Int) {
-      if (dead) return
-      if (row == newRow && col == newCol) return
-
+    def updatePos(newRow: Int, newCol: Int) = {
       map(row)(col) -= this
-      row = newRow
-      col = newCol
+      row = newRow; col = newCol
       map(row)(col) += this
 
-      becomeInfected()
+      if (map(row)(col).exists{ _.isInfectious }) {
+        scheduleBecomeInfected()
+      }
     }
 
     def neighbours() = {
@@ -140,19 +144,23 @@ class EpidemySimulator extends Simulator {
 
     def randomMove() = {
       if (hasAirTraffic && random < airTrafficRate) {
-        (randomRow(), randomColumn())
+        Some(randomRow(), randomColumn())
 
       } else {
         val free = neighbours()
-                   .filterNot(e => map(e._1)(e._2).exists(p => p.isVisiblyInfectious))
+                   .filterNot{ e => map(e._1)(e._2).exists{ p => p.isVisiblyInfectious } }
                    .toList
-        if (free.isEmpty) (row, col)
-        else free(randomBelow(free.size))
+        if (free.isEmpty) None
+        else Some(free(randomBelow(free.size)))
 
       }
     }
 
-    def modeDelay() = {
+    // Main logic
+
+    def scheduleMode(): Unit = afterDelay(modeDelay()) { mode() }
+
+    def modeDelay(): Int = {
       if (hasReducedMobility) {
         if (isVisiblyInfectious) {
           randomBelow(4 * modeQuanta)
@@ -166,13 +174,13 @@ class EpidemySimulator extends Simulator {
       }
     }
 
-    def mode() {
-      afterDelay(modeDelay()) {
-        val next = randomMove()
-        updatePos(next._1, next._2)
-        mode()
+    def mode(): Unit = ifPossible() {
+      randomMove().foreach { pos =>
+        updatePos(pos._1, pos._2)
       }
+      scheduleMode()
     }
+
   }
 
 }
